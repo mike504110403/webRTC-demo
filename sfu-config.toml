@@ -1,0 +1,21 @@
+# ion-sfu 基礎配置（MVP 最簡單版本）
+
+[sfu]
+  ballast = "1GB"
+
+[router]
+  maxbandwidth = 1500
+  maxpackettrack = 500
+
+[webrtc]
+  # ICE 配置
+  [[webrtc.iceserver]]
+    urls = ["stun:stun.l.google.com:19302"]
+  
+  # 媒體端口範圍
+  portrange.start = 5000
+  portrange.end = 5020
+
+[log]
+  level = "info"
+

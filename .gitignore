@@ -1,0 +1,23 @@
+# Backend (Go)
+/backend/bin/
+/backend/*.exe
+/backend/*.log
+
+# Frontend (Vue)
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
