@@ -1,38 +1,42 @@
-version: '3.8'
-
-# 注意：我們現在使用內建的 Pion WebRTC SFU（在 Go 後端內部）
-# 不需要額外的 ion-sfu Docker 容器了！
-
-# 如果未來需要獨立的 SFU 服務，可以取消以下註解：
-
-# services:
-#   # 獨立的 ion-sfu 服務（目前不使用）
-#   sfu:
-#     image: pion/ion-sfu:latest
-#     container_name: webrtc-sfu
-#     ports:
-#       - "7000:7000"      # HTTP API
-#       - "5000-5020:5000-5020/udp"  # WebRTC 媒體端口
-#     volumes:
-#       - ./sfu-config.toml:/configs/sfu.toml
-#     networks:
-#       - webrtc-network
-
 services:
-  # Signaling Server + 內建 SFU (Go 後端)
-  signaling:
+  # 後端服務（Signaling Server + 內建 SFU）
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: webrtc-signaling
+    container_name: webrtc-backend
     ports:
       - "8080:8080"
     environment:
       - PORT=8080
     networks:
       - webrtc-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服務
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: webrtc-frontend
+    ports:
+      - "5173:80"
+    networks:
+      - webrtc-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   webrtc-network:
     driver: bridge
-

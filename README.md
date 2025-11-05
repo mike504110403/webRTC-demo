@@ -1,34 +1,59 @@
-# WebRTC 直播系統（P2SFU2P 架構）
+# WebRTC 直播系統（P2SFU2P）
 
-> 基於 Pion WebRTC 的低延遲直播系統，實現 1 對多即時串流
+> 基於 Pion WebRTC 的低延遲直播系統，支援 1 對多即時串流
 
-## ✨ 已完成功能
+## ✨ 功能特點
 
-- ✅ **WebSocket Signaling Server**：SDP/ICE 交換
-- ✅ **內建 Pion WebRTC SFU**：1 對多媒體轉發
-- ✅ **主播端**：推流到 SFU
-- ✅ **觀眾端**：從 SFU 接收串流
-- ✅ **局域網支援**：多設備同 WiFi 訪問
-- ✅ **自動主機檢測**：無需手動配置 IP
+- ✅ **低延遲直播**：< 1 秒延遲
+- ✅ **1 對多轉發**：內建 Pion WebRTC SFU
+- ✅ **Docker 支援**：一鍵啟動，無需安裝環境
+- ✅ **局域網訪問**：支援多設備同時觀看
 
-## 🏗️ 技術架構
+## 🚀 快速開始
 
-### 技術棧
+### 方式 1：Docker（推薦）⭐
 
-| 層級 | 技術 | 說明 |
-|------|------|------|
-| **前端** | Vue 3 + TypeScript | 響應式 UI，類型安全 |
-| **後端** | Go + Pion WebRTC | 高性能，原生 WebRTC 支援 |
-| **通訊** | WebSocket | 低延遲雙向通訊（Signaling） |
-| **媒體** | SRTP over WebRTC | 加密即時串流（DTLS 握手） |
+**無需安裝 Go 和 Node.js**
 
-### 核心概念
+```bash
+# 一鍵啟動
+./docker-start.sh
 
-- **P2SFU2P**：主播 → SFU → 多個觀眾
-- **SDP 交換**：透過 WebSocket 交換媒體能力
-- **ICE 穿透**：自動 NAT 穿透
-- **DTLS 握手**：建立加密通道
-- **SRTP 傳輸**：加密音視訊封包
+# 停止
+./docker-stop.sh
+```
+
+首次啟動需要構建鏡像（5-10 分鐘），後續只需幾秒。
+
+📖 詳細說明：[DOCKER.md](./DOCKER.md)
+
+### 方式 2：本地開發
+
+**需要 Go 1.21+ 和 Node.js 18+**
+
+```bash
+# 1. 安裝依賴（首次）
+cd frontend && npm install && cd ..
+cd backend && go mod download && cd ..
+
+# 2. 啟動
+./start.sh
+
+# 3. 停止
+./stop.sh
+```
+
+### 訪問地址
+
+```
+主播端: http://localhost:5173/broadcaster
+觀眾端: http://localhost:5173/viewer
+後端API: http://localhost:8080/health
+```
+
+**局域網訪問**：
+- 查看本機 IP：`ipconfig getifaddr en0`（macOS）
+- 訪問：`http://<你的IP>:5173/broadcaster`
 
 ## 🎯 技術流程
 
@@ -56,7 +81,7 @@
      │                    │                    │
      │ 6. 推送 SRTP       │                    │
      │═══════════════════>│                    │
-     │                    │                    │
+     │   (加密音視訊)      │                    │
      │                    │  7. WebSocket 連接 │
      │                    │<───────────────────┤
      │                    │                    │
@@ -66,244 +91,156 @@
      │                    │  9. Answer SDP     │
      │                    ├───────────────────>│
      │                    │                    │
-     │                    │ 10. ICE Candidates │
+     │                    │ 10. ICE + DTLS     │
      │                    │<══════════════════>│
+     │                    │    ✅ 連線建立      │
      │                    │                    │
-     │                    │ 11. DTLS 握手      │
-     │                    │<══════════════════>│
-     │                    │   ✅ 連線建立       │
-     │                    │                    │
-     │                    │ 12. 轉發 SRTP      │
+     │                    │ 11. 轉發 SRTP      │
      │                    │═══════════════════>│
-     │                    │                    │ ▶️ 播放
+     │                    │   (加密音視訊)      │ ▶️ 播放
 ```
+
+**核心概念**：
+- **P2SFU2P**：主播 → SFU → 多個觀眾
+- **WebSocket**：Signaling（交換 SDP/ICE）
+- **DTLS**：建立加密通道
+- **SRTP**：加密音視訊傳輸
 
 ## 📂 專案結構
 
 ```
 webRTC-demo/
-├── backend/                     # Go 後端
-│   ├── main.go                  # 入口：HTTP + WebSocket + SFU
-│   ├── go.mod                   # 依賴管理
+├── backend/                 # Go 後端
+│   ├── main.go              # HTTP + WebSocket + SFU
+│   ├── Dockerfile
 │   └── internal/
-│       ├── signaling/           # WebSocket Signaling Server
-│       │   ├── hub.go           # 房間管理 + 訊息廣播
-│       │   ├── client.go        # WebSocket 客戶端處理
-│       │   ├── handler.go       # HTTP → WebSocket 升級
-│       │   └── types.go         # 訊息結構定義
-│       └── sfu/                 # 內建 Pion WebRTC SFU
-│           └── sfu.go           # 媒體轉發邏輯
+│       ├── signaling/       # WebSocket Signaling
+│       └── sfu/             # Pion WebRTC SFU
 │
-├── frontend/                    # Vue 3 前端
+├── frontend/                # Vue 3 前端
 │   ├── src/
-│   │   ├── services/
-│   │   │   ├── signaling.ts    # WebSocket 封裝
-│   │   │   └── webrtc.ts       # RTCPeerConnection 封裝
-│   │   └── views/
-│   │       ├── Broadcaster.vue # 主播介面
-│   │       └── Viewer.vue      # 觀眾介面
-│   └── vite.config.ts           # Vite 配置（host: 0.0.0.0）
+│   │   ├── services/        # WebSocket + WebRTC
+│   │   └── views/           # Broadcaster + Viewer
+│   ├── Dockerfile
+│   └── nginx.conf
 │
-├── start.sh                     # 啟動腳本（macOS/Linux）
-├── stop.sh                      # 停止腳本
-└── docker-compose.yml           # Docker 編排（預留）
+├── docker-compose.yml       # Docker 編排
+├── docker-start.sh          # Docker 啟動
+├── start.sh                 # 本地開發啟動
+└── README.md
 ```
 
-## 🚀 快速開始
+## 🏗️ 技術架構
 
-### 1️⃣ 安裝依賴（首次使用）
-
-```bash
-# 安裝前端依賴
-cd frontend && npm install && cd ..
-
-# 安裝後端依賴
-cd backend && go mod download && cd ..
-```
-
-### 2️⃣ 啟動服務
-
-```bash
-# 一鍵啟動（推薦）
-./start.sh
-
-# 或手動啟動
-# 終端 1：啟動後端
-cd backend && go run main.go
-
-# 終端 2：啟動前端
-cd frontend && npm run dev
-```
-
-### 3️⃣ 訪問應用
-
-#### 本機訪問
-
-```
-主播端: http://localhost:5173/broadcaster
-觀眾端: http://localhost:5173/viewer
-後端 API: http://localhost:8080/health
-```
-
-#### 局域網訪問（同一 WiFi）
-
-前端啟動後會顯示局域網 IP：
-
-```
-VITE v5.x.x  ready in xxx ms
-
-  ➜  Local:   http://localhost:5173/
-  ➜  Network: http://192.168.1.181:5173/  ← 用這個 IP
-```
-
-**其他設備訪問**（手機/平板）：
-
-```
-主播端: http://192.168.1.181:5173/broadcaster
-觀眾端: http://192.168.1.181:5173/viewer
-```
-
-### 4️⃣ 停止服務
-
-```bash
-./stop.sh
-
-# 或按 Ctrl+C 停止終端進程
-```
+| 層級 | 技術 |
+|------|------|
+| **前端** | Vue 3 + TypeScript |
+| **後端** | Go + Pion WebRTC |
+| **通訊** | WebSocket（Signaling） |
+| **媒體** | SRTP（加密串流） |
+| **部署** | Docker + Nginx |
 
 ## 🎮 使用說明
 
-### 主播端操作
+### 主播端
 
-1. 訪問主播頁面
+1. 訪問：`http://localhost:5173/broadcaster`
 2. 點擊「開始直播」
-3. 授權瀏覽器使用攝像頭/麥克風
+3. 授權攝像頭/麥克風
 4. ✅ 開始推流
 
-### 觀眾端操作
+### 觀眾端
 
-1. 訪問觀眾頁面
+1. 訪問：`http://localhost:5173/viewer`
 2. 點擊「加入直播」
 3. ✅ 觀看直播
 
 ### 測試場景
 
-- **單機測試**：同一台電腦開兩個瀏覽器分頁
-- **多設備測試**：電腦主播 + 手機觀眾
-- **多人觀看**：1 個主播 + N 個觀眾（同時觀看）
+- **單機測試**：同一電腦開兩個分頁
+- **多設備測試**：電腦主播 + 手機觀眾（同一 WiFi）
+- **多人觀看**：1 主播 + N 觀眾
 
-## 📊 性能指標
+## 🔧 開發命令
 
-- **延遲**：< 1 秒（P2SFU2P 架構）
-- **支援觀眾數**：理論無上限（SFU 轉發）
-- **網路協議**：WebRTC (SRTP)
-- **加密**：DTLS 1.2
-
-## 🔧 開發說明
-
-### 後端
+### Docker
 
 ```bash
-cd backend
+# 查看日誌
+docker-compose logs -f
 
-# 執行
-go run main.go
+# 重啟
+docker-compose restart
 
-# 編譯
-go build -o server main.go
+# 重新構建
+docker-compose build --no-cache
 
-# 測試
-curl http://localhost:8080/health
+# 清理
+docker-compose down --rmi all
 ```
 
-### 前端
+### 本地開發
 
 ```bash
-cd frontend
+# 後端
+cd backend && go run main.go
 
-# 開發模式
-npm run dev
-
-# 編譯
-npm run build
-
-# 預覽
-npm run preview
-```
-
-## 🌐 網路配置
-
-### 防火牆設置
-
-如果局域網無法訪問，檢查防火牆：
-
-```bash
-# macOS：系統偏好設定 → 安全性與隱私 → 防火牆
-# 允許 Go 和 Node.js 接受連線
-
-# 或臨時關閉防火牆測試
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
-```
-
-### 查看本機 IP
-
-```bash
-# macOS
-ifconfig | grep "inet " | grep -v 127.0.0.1
-
-# 或
-ipconfig getifaddr en0
-```
-
-## 📝 關鍵技術細節
-
-### WebSocket 訊息格式
-
-```typescript
-{
-  type: 'offer' | 'answer' | 'ice_candidate',
-  payload: {
-    sdp?: string,           // SDP 字串
-    candidate?: string,     // ICE 候選
-    userID: string,
-    roomID: string
-  }
-}
-```
-
-### WebRTC 連線狀態
-
-```
-connecting → connected → disconnected/failed
-```
-
-### SFU 轉發邏輯
-
-```
-主播推送 Track → SFU 緩存 → 觀眾訂閱 → SFU 轉發
+# 前端
+cd frontend && npm run dev
 ```
 
 ## 🛠️ 故障排除
 
 ### 觀眾看不到畫面
 
-1. **檢查後端 log**：是否有 `SetRemoteDescription` 錯誤
-2. **檢查前端 Console**：PeerConnection 狀態
-3. **重新整理頁面**：清除舊的 WebRTC 連線
-4. **重啟服務**：`./stop.sh` → `./start.sh`
+```bash
+# 1. 查看日誌
+docker-compose logs backend
+
+# 2. 檢查 Console（F12）
+
+# 3. 重啟服務
+./docker-stop.sh && ./docker-start.sh
+```
+
+### 端口被佔用
+
+```bash
+# 檢查
+lsof -i :8080
+lsof -i :5173
+
+# 殺掉進程
+kill -9 <PID>
+```
 
 ### 局域網無法訪問
 
-1. **確認同一 WiFi**：所有設備連接同一個網路
-2. **檢查 IP 地址**：`npm run dev` 顯示的 Network IP
-3. **防火牆設置**：允許 8080 和 5173 埠
-4. **使用 Chrome**：移動設備用 Chrome 瀏覽器
+1. 確認同一 WiFi
+2. 檢查防火牆設置
+3. 使用 Chrome 瀏覽器
 
-### WebSocket 連線失敗
+## 📊 性能指標
 
-1. **後端是否啟動**：`curl http://localhost:8080/health`
-2. **埠是否被佔用**：`lsof -i :8080`
-3. **檢查 CORS**：已設置 `AllowedOrigins: ["*"]`
+- **延遲**：< 1 秒
+- **支援觀眾數**：理論無上限（SFU 轉發）
+- **鏡像大小**：後端 50MB，前端 30MB
+- **加密**：DTLS 1.2
+
+## 🚀 未來擴展
+
+- 🔄 斷線自動重連
+- 🎁 互動功能（送禮、點贊）
+- 🎤 連麥功能（多主播）
+- 📊 性能監控面板
+- 🔐 身份驗證（JWT）
+- 💾 Redis 持久化
+
+## 📚 相關文檔
+
+- [DOCKER.md](./DOCKER.md) - Docker 詳細指南
+- [QUICKSTART.md](./QUICKSTART.md) - 快速開始指南
+- [CHANGELOG-DOCKER.md](./CHANGELOG-DOCKER.md) - Docker 更新日誌
 
 ## 🎯 MVP 驗收標準
 
@@ -311,38 +248,32 @@ connecting → connected → disconnected/failed
 - ✅ 多個觀眾同時觀看
 - ✅ 延遲 < 1 秒
 - ✅ 局域網訪問
-- ⏳ 斷線自動重連（待優化）
-- ⏳ 性能監控（待實現）
+- ✅ Docker 一鍵部署
 
-## 🚀 未來擴展
+## 📝 開發背景
 
-### 下一步功能
+從 RTMP/HLS 架構轉向 WebRTC，實現低延遲互動直播。
 
-- 🔄 **斷線重連**：自動恢復 WebSocket 和 PeerConnection
-- 🎁 **互動功能**：送禮、點贊（WebSocket 事件）
-- 🎤 **連麥功能**：觀眾升級為共同主播（多 Track）
-- 📊 **監控面板**：bitrate、RTT、packet loss
-- 🔐 **身份驗證**：JWT Token 驗證
-- 💾 **房間持久化**：Redis 存儲房間狀態
-
-### 架構演進
-
+**技術演進**：
 ```
-MVP（當前）        → 生產環境
-├─ 單 SFU 節點     → 多 SFU 節點 + Load Balancer
-├─ 硬編碼配置      → 環境變數 + 配置中心
-├─ HTTP           → HTTPS (TLS 證書)
-└─ 本地部署        → Kubernetes + Docker
+RTMP → HLS (5-10s 延遲)  →  WebRTC (< 1s 延遲)
 ```
 
-## 📚 參考資源
+**架構選擇**：
+- **SFU** (Selective Forwarding Unit)：不轉碼，只轉發
+- **P2SFU2P**：主播 → SFU → 觀眾
+- **內建 SFU**：使用 Pion WebRTC，無需外部服務
 
-- [Pion WebRTC](https://github.com/pion/webrtc)
-- [WebRTC API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
-- [Ion SFU](https://github.com/pion/ion-sfu)
+## 🌟 專案亮點
+
+1. **完整實現**：Signaling + SFU + 前後端
+2. **模組化設計**：易於擴展新功能
+3. **Docker 支援**：一鍵部署
+4. **技術完整性**：WebSocket、WebRTC、DTLS、SRTP
+5. **實用性**：可直接用於面試展示
 
 ---
 
 **版本**：MVP v1.0  
-**最後更新**：2025-11-05  
-**開發狀態**：✅ 核心功能完成，可展示和測試
+**最後更新**：2025-11-06  
+**狀態**：✅ 可運行、可展示、可擴展

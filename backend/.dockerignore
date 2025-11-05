@@ -1,0 +1,31 @@
+# 編譯產物
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 測試文件
+*_test.go
+*.test
+*.out
+
+# 依賴緩存
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 臨時文件
+*.log
+tmp/
+temp/
+
